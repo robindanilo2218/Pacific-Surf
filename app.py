@@ -50,13 +50,26 @@ def proxy():
     target_url = request.args.get('url')
     if not target_url: return home()
     if not target_url.startswith('http'): target_url = "https://" + target_url
-
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+       
+# Cabeceras actualizadas para cumplir con la política de Wikipedia
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+        'DNT': '1', # Do Not Track
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
 
     try:
-        response = requests.get(target_url, headers=headers, timeout=15)
+        # Usamos una sesión para que la conexión sea más estable
+        session = requests.Session()
+        response = session.get(target_url, headers=headers, timeout=15)
+        
+        # Si Wikipedia nos da error de nuevo, intentamos forzar la respuesta
+        response.raise_for_status() 
+        
         soup = BeautifulSoup(response.text, 'html.parser')
-
         # 1. REESCRITURA DE ENLACES (Para navegación interna)
         for a in soup.find_all('a', href=True):
             original_link = urljoin(target_url, a['href'])
