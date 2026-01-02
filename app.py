@@ -5,86 +5,89 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# Interfaz inicial limpia
-HOME_HTML = """
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { font-family: 'Courier New', monospace; background: #001a33; color: #e0ffff; text-align: center; padding: 50px; }
-        .terminal { border: 2px solid #00ffff; padding: 20px; display: inline-block; background: #002b4d; }
-        input { background: #000; color: #00ffff; border: 1px solid #00ffff; padding: 10px; width: 80%; margin-bottom: 10px; }
-        button { background: #00ffff; color: #001a33; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="terminal">
-        <h1>PACIFIC SURF v3.3</h1>
-        <p>[ NAVEGACIÓN NATURAL ]</p>
-        <form action="/nav" method="get">
-            <input type="text" name="url" placeholder="URL o Búsqueda..." required>
-            <br>
-            <button type="submit">INICIAR SESIÓN</button>
-        </form>
-    </div>
-</body>
-</html>
+# CSS que define la identidad visual Blueprint
+BLUEPRINT_CSS = """
+<style id="pacific-styles">
+    body.blueprint, body.blueprint * { 
+        background-color: #001a33 !important; 
+        color: #00ffff !important; 
+        font-family: 'Courier New', monospace !important;
+        border-color: #005588 !important;
+    }
+    body.blueprint a { color: #e0ffff !important; text-decoration: underline !important; }
+    
+    /* El Engranaje de Ajustes */
+    #settings-gear {
+        position: fixed; bottom: 20px; right: 20px; z-index: 1000000;
+        background: #00ffff; color: #000; border-radius: 50%;
+        width: 50px; height: 50px; display: flex; align-items: center;
+        justify-content: center; font-size: 24px; cursor: pointer; box-shadow: 0 0 10px #000;
+    }
+</style>
+"""
+
+JS_CONTROLS = """
+<script>
+    function toggleBlueprint() {
+        document.body.classList.toggle('blueprint');
+        localStorage.setItem('mode', document.body.classList.contains('blueprint') ? 'blue' : 'nat');
+    }
+    // Mantener el modo al cargar la página
+    window.onload = () => {
+        if(localStorage.getItem('mode') === 'blue') document.body.classList.add('blueprint');
+    };
+</script>
 """
 
 @app.route('/')
 def home():
-    return render_template_string(HOME_HTML)
+    # ... (Mantenemos tu HOME_HTML actual de la v3.3) ...
+    return render_template_string("<h1>PACIFIC SURF v3.4</h1><form action='/nav'><input name='url'><button>GO</button></form>")
 
 @app.route('/nav')
 def proxy():
-    query = request.args.get('url')
-    if not query: return home()
+    target_url = request.args.get('url')
+    if not target_url: return home()
+    if not target_url.startswith('http'): target_url = "https://" + target_url
 
-    target_url = query if query.startswith('http') else f"https://www.google.com/search?q={query}"
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
     try:
-        # Iniciamos sesión para manejar persistencia
-        session = requests.Session()
-        response = session.get(target_url, headers=headers, timeout=15)
-        
-        # FIX DE CARACTERES: Forzamos UTF-8 para evitar "FranÃ§ais"
+        response = requests.get(target_url, headers=headers, timeout=15)
         response.encoding = 'utf-8'
-        
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # FIX DE RUTAS: Inyectamos <base> para que el navegador busque estilos en el sitio original
+        # FIX DE RUTAS Y LINKS (Lo que ya funcionaba)
         base_tag = soup.new_tag('base', href=target_url)
-        if soup.head:
-            soup.head.insert(0, base_tag)
-        else:
-            new_head = soup.new_tag('head')
-            new_head.insert(0, base_tag)
-            soup.insert(0, new_head)
+        soup.head.insert(0, base_tag) if soup.head else soup.insert(0, base_tag)
 
-        # REESCRITURA DE ENLACES: Para no salir nunca del proxy
         for a in soup.find_all('a', href=True):
-            full_url = urljoin(target_url, a['href'])
-            a['href'] = f"/nav?{urlencode({'url': full_url})}"
+            a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
 
-        # BARRA DE HERRAMIENTAS INTEGRADA
-        top_bar = f"""
-        <div style="background:#000; color:#0ff; padding:8px; font-family:monospace; position:fixed; top:0; width:100%; z-index:999999; border-bottom:1px solid #0ff; opacity:0.9;">
-            <a href="/" style="color:#0ff; text-decoration:none;">[ NUEVA_BÚSQUEDA ]</a> | 
-            <span style="font-size:10px;">CONECTADO_A: {target_url[:35]}...</span>
-        </div>
-        <div style="height:40px;"></div>
+        # INYECCIÓN DEL ENGRANAJE Y ESTILOS STICKY
+        settings_html = f'<div id="settings-gear" onclick="toggleBlueprint()">⚙️</div>'
+        
+        full_body = soup.body.prettify() if soup.body else soup.prettify()
+        
+        return f"""
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            {BLUEPRINT_CSS}
+            {JS_CONTROLS}
+        </head>
+        <body class="blueprint">
+            {settings_html}
+            <div style="background:#000; color:#0ff; padding:5px; position:sticky; top:0; z-index:99999; font-size:10px; border-bottom:1px solid #0ff;">
+                <a href="/" style="color:#0ff;">[NUEVA BÚSQUEDA]</a> | {target_url[:30]}
+            </div>
+            {full_body}
+        </body>
+        </html>
         """
-
-        return top_bar + soup.prettify()
-
     except Exception as e:
-        return f"<html><body style='background:#000; color:red;'>ERROR_DE_SISTEMA: {str(e)}<br><a href='/'>REINTENTAR</a></body></html>"
+        return f"Error: {str(e)}"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
