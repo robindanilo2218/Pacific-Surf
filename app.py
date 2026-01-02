@@ -75,6 +75,17 @@ def proxy():
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
 
+# --- ALGORITMO DE AHORRO DE DATOS (90% SAVING) ---
+# Eliminamos todo lo que consume datos antes de enviar al móvil
+for heavy_tag in soup(["img", "video", "iframe", "audio", "canvas", "svg"]):
+    heavy_tag.decompose() # Esto borra el objeto y evita que se descargue
+
+# Eliminamos scripts pesados de publicidad y rastreo
+for script in soup(["script", "noscript"]):
+    script.decompose()
+# -------------------------------------------------
+
+
         # Inyección de Base y Links
         base_tag = soup.new_tag('base', href=target_url)
         if soup.head: soup.head.insert(0, base_tag)
