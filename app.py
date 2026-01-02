@@ -51,6 +51,27 @@ def proxy():
     if not target_url: return home()
     if not target_url.startswith('http'): target_url = "https://" + target_url
        
+# --- INYECCIÓN DEL MODO EDITOR (SÓLO ESTO) ---
+EDITOR_SCRIPT = """
+<script>
+document.addEventListener('mouseover', function(e) {
+    e.target.classList.add('pacific-highlight');
+}, False);
+
+document.addEventListener('mouseout', function(e) {
+    e.target.classList.remove('pacific-highlight');
+}, False);
+
+document.addEventListener('click', function(e) {
+    e.preventDefault();
+    if(confirm('¿ELIMINAR ESTE OBJETO?')) {
+        e.target.remove();
+    }
+}, False);
+</script>
+"""
+# Añade EDITOR_SCRIPT al final del HTML que retornas
+       
 # Cabeceras actualizadas para cumplir con la política de Wikipedia
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
