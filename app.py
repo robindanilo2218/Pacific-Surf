@@ -5,25 +5,27 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
+# Interfaz inicial limpia
 HOME_HTML = """
 <html>
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f8f9fa; color: #333; }
-        .container { border: 1px solid #dee2e6; padding: 40px; display: inline-block; background: white; border-radius: 10px; }
-        input { width: 80%; padding: 12px; border: 1px solid #ced4da; border-radius: 5px; margin-bottom: 15px; }
-        button { padding: 12px 25px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        body { font-family: 'Courier New', monospace; background: #001a33; color: #e0ffff; text-align: center; padding: 50px; }
+        .terminal { border: 2px solid #00ffff; padding: 20px; display: inline-block; background: #002b4d; }
+        input { background: #000; color: #00ffff; border: 1px solid #00ffff; padding: 10px; width: 80%; margin-bottom: 10px; }
+        button { background: #00ffff; color: #001a33; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>PACIFIC SURF v3.1</h1>
-        <p>Navegación Natural y Directa</p>
+    <div class="terminal">
+        <h1>PACIFIC SURF v3.3</h1>
+        <p>[ NAVEGACIÓN NATURAL ]</p>
         <form action="/nav" method="get">
-            <input type="text" name="url" placeholder="Escribe URL (ej: wikipedia.org) o busca..." required>
+            <input type="text" name="url" placeholder="URL o Búsqueda..." required>
             <br>
-            <button type="submit">ENTRAR</button>
+            <button type="submit">INICIAR SESIÓN</button>
         </form>
     </div>
 </body>
@@ -39,18 +41,24 @@ def proxy():
     query = request.args.get('url')
     if not query: return home()
 
-    target_url = query if query.startswith('http') else f"https://www.google.com/search?q={query}&gbv=1"
+    target_url = query if query.startswith('http') else f"https://www.google.com/search?q={query}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'
     }
 
     try:
-        response = requests.get(target_url, headers=headers, timeout=15)
+        # Iniciamos sesión para manejar persistencia
+        session = requests.Session()
+        response = session.get(target_url, headers=headers, timeout=15)
+        
+        # FIX DE CARACTERES: Forzamos UTF-8 para evitar "FranÃ§ais"
+        response.encoding = 'utf-8'
+        
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # --- LA CLAVE PARA LA NAVEGACIÓN NATURAL ---
-        # Añadimos <base> para que el CSS y JS carguen desde el sitio original automáticamente
+        # FIX DE RUTAS: Inyectamos <base> para que el navegador busque estilos en el sitio original
         base_tag = soup.new_tag('base', href=target_url)
         if soup.head:
             soup.head.insert(0, base_tag)
@@ -59,16 +67,16 @@ def proxy():
             new_head.insert(0, base_tag)
             soup.insert(0, new_head)
 
-        # Reescritura de enlaces para no perder la sesión del proxy
+        # REESCRITURA DE ENLACES: Para no salir nunca del proxy
         for a in soup.find_all('a', href=True):
             full_url = urljoin(target_url, a['href'])
             a['href'] = f"/nav?{urlencode({'url': full_url})}"
 
-        # Barra de navegación minimalista para volver al inicio
+        # BARRA DE HERRAMIENTAS INTEGRADA
         top_bar = f"""
-        <div style="background:#000; color:#fff; padding:10px; font-family:sans-serif; position:fixed; top:0; width:100%; z-index:999999; font-size:12px; opacity:0.8;">
-            <a href="/" style="color:#fff; text-decoration:none; font-weight:bold;">[ NUEVA BÚSQUEDA ]</a> | 
-            <span>Sitio: {target_url[:30]}...</span>
+        <div style="background:#000; color:#0ff; padding:8px; font-family:monospace; position:fixed; top:0; width:100%; z-index:999999; border-bottom:1px solid #0ff; opacity:0.9;">
+            <a href="/" style="color:#0ff; text-decoration:none;">[ NUEVA_BÚSQUEDA ]</a> | 
+            <span style="font-size:10px;">CONECTADO_A: {target_url[:35]}...</span>
         </div>
         <div style="height:40px;"></div>
         """
@@ -76,7 +84,7 @@ def proxy():
         return top_bar + soup.prettify()
 
     except Exception as e:
-        return f"Error: {str(e)} <br><a href='/'>Regresar</a>"
+        return f"<html><body style='background:#000; color:red;'>ERROR_DE_SISTEMA: {str(e)}<br><a href='/'>REINTENTAR</a></body></html>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
