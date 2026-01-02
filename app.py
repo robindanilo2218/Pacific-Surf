@@ -5,44 +5,62 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# CSS que define la identidad visual Blueprint
-BLUEPRINT_CSS = """
-<style id="pacific-styles">
-    body.blueprint, body.blueprint * { 
+# Estilos base del sistema y el Panel de Ajustes
+CORE_ASSETS = """
+<style>
+    :root { --font-size: 1.2rem; }
+    
+    /* Modo Blueprint Forzado */
+    body.blueprint-on, body.blueprint-on * { 
         background-color: #001a33 !important; 
         color: #00ffff !important; 
         font-family: 'Courier New', monospace !important;
-        border-color: #005588 !important;
+        font-size: var(--font-size) !important;
     }
-    body.blueprint a { color: #e0ffff !important; text-decoration: underline !important; }
-    
-    /* El Engranaje de Ajustes */
-    #settings-gear {
-        position: fixed; bottom: 20px; right: 20px; z-index: 1000000;
-        background: #00ffff; color: #000; border-radius: 50%;
-        width: 50px; height: 50px; display: flex; align-items: center;
-        justify-content: center; font-size: 24px; cursor: pointer; box-shadow: 0 0 10px #000;
+    body.blueprint-on a { color: #e0ffff !important; }
+
+    /* UI del Engranaje y Panel */
+    #gear-btn { 
+        position: fixed; bottom: 20px; right: 20px; z-index: 100000;
+        background: #00ffff; border-radius: 50%; width: 45px; height: 45px;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    #settings-panel {
+        position: fixed; bottom: 75px; right: 20px; z-index: 100000;
+        background: #000; border: 2px solid #00ffff; padding: 15px;
+        display: none; flex-direction: column; gap: 10px; color: #00ffff;
     }
 </style>
-"""
 
-JS_CONTROLS = """
 <script>
-    function toggleBlueprint() {
-        document.body.classList.toggle('blueprint');
-        localStorage.setItem('mode', document.body.classList.contains('blueprint') ? 'blue' : 'nat');
+    function togglePanel() {
+        const p = document.getElementById('settings-panel');
+        p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
     }
-    // Mantener el modo al cargar la página
-    window.onload = () => {
-        if(localStorage.getItem('mode') === 'blue') document.body.classList.add('blueprint');
-    };
+
+    function updateSize(val) {
+        document.documentElement.style.setProperty('--font-size', val + 'rem');
+        localStorage.setItem('p-size', val);
+    }
+
+    function toggleBlue(btn) {
+        document.body.classList.toggle('blueprint-on');
+        localStorage.setItem('p-mode', document.body.classList.contains('blueprint-on') ? 'on' : 'off');
+    }
+
+    // Aplicar persistencia al cargar
+    window.addEventListener('DOMContentLoaded', () => {
+        if(localStorage.getItem('p-mode') !== 'off') document.body.classList.add('blueprint-on');
+        const savedSize = localStorage.getItem('p-size') || '1.2';
+        updateSize(savedSize);
+        document.getElementById('size-slider').value = savedSize;
+    });
 </script>
 """
 
 @app.route('/')
 def home():
-    # ... (Mantenemos tu HOME_HTML actual de la v3.3) ...
-    return render_template_string("<h1>PACIFIC SURF v3.4</h1><form action='/nav'><input name='url'><button>GO</button></form>")
+    return render_template_string("<h1>PACIFIC SURF v3.5</h1><form action='/nav'><input name='url'><button>GO</button></form>")
 
 @app.route('/nav')
 def proxy():
@@ -57,35 +75,23 @@ def proxy():
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # FIX DE RUTAS Y LINKS (Lo que ya funcionaba)
+        # Inyección de Base y Links
         base_tag = soup.new_tag('base', href=target_url)
-        soup.head.insert(0, base_tag) if soup.head else soup.insert(0, base_tag)
-
+        if soup.head: soup.head.insert(0, base_tag)
         for a in soup.find_all('a', href=True):
             a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
 
-        # INYECCIÓN DEL ENGRANAJE Y ESTILOS STICKY
-        settings_html = f'<div id="settings-gear" onclick="toggleBlueprint()">⚙️</div>'
-        
-        full_body = soup.body.prettify() if soup.body else soup.prettify()
-        
-        return f"""
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            {BLUEPRINT_CSS}
-            {JS_CONTROLS}
-        </head>
-        <body class="blueprint">
-            {settings_html}
-            <div style="background:#000; color:#0ff; padding:5px; position:sticky; top:0; z-index:99999; font-size:10px; border-bottom:1px solid #0ff;">
-                <a href="/" style="color:#0ff;">[NUEVA BÚSQUEDA]</a> | {target_url[:30]}
-            </div>
-            {full_body}
-        </body>
-        </html>
+        # Construcción de la UI de Control
+        ui_html = f"""
+        <div id="gear-btn" onclick="togglePanel()">⚙️</div>
+        <div id="settings-panel">
+            <strong>AJUSTES</strong>
+            <label>Tamaño Letra: <input type="range" id="size-slider" min="0.8" max="2.5" step="0.1" oninput="updateSize(this.value)"></label>
+            <button onclick="toggleBlue()" style="background:#00ffff; border:none; cursor:pointer;">Alternar Blueprint</button>
+        </div>
         """
+
+        return f"<html><head>{CORE_ASSETS}</head><body>{ui_html}{soup.body.prettify() if soup.body else soup.prettify()}</body></html>"
     except Exception as e:
         return f"Error: {str(e)}"
 
