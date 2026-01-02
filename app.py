@@ -5,34 +5,29 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# Estilo Blueprint con letra MUY GRANDE y adaptable
+# Estilo Blueprint con soporte para Paneles Laterales
 UI_STYLE = """
     font-family: 'Courier New', Courier, monospace;
     background-color: #003366;
     color: #E0FFFF;
-    line-height: 1.6;
-    padding: 5%;
+    line-height: 1.5;
+    padding: 0;
     margin: 0;
-    font-size: 1.5rem; 
+    font-size: 1.4rem; 
 """
 
 @app.route('/')
 def home():
     return render_template_string(f"""
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>PACIFIC-SURF</title>
-    </head>
-    <body style="{UI_STYLE} text-align: center;">
-        <div style="border: 3px solid #E0FFFF; padding: 25px; margin-top: 30px; display: inline-block; width: 95%; max-width: 600px;">
-            <h1 style="font-size: 2.2rem; margin:0;">PACIFIC-SURF</h1>
-            <p style="font-size: 1rem; color: #00FFFF;">[ BLUEPRINT_V1.8_READY ]</p>
-            <hr style="border: 1px dashed #E0FFFF; margin: 20px 0;">
+    <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="{UI_STYLE} text-align: center; display: flex; align-items: center; justify-content: center; height: 100vh;">
+        <div style="border: 3px solid #E0FFFF; padding: 30px; width: 90%; max-width: 500px;">
+            <h1>PACIFIC-SURF</h1>
+            <p>[SIDEBAR_SUPPORT_ENABLED]</p>
             <form action="/nav" method="get">
-                <input type="text" name="url" style="width: 100%; background: #001122; color: #00FFFF; border: 1px solid #00FFFF; padding: 15px; font-size: 1.3rem;" placeholder="Busca algo o pega URL...">
+                <input type="text" name="url" style="width: 100%; background: #001122; color: #00FFFF; border: 1px solid #00FFFF; padding: 15px; font-size: 1.2rem;" placeholder="Pega URL (ej: bbc.com)">
                 <br><br>
-                <button type="submit" style="width: 100%; background: #E0FFFF; color: #003366; border: none; padding: 15px; font-weight: bold; font-size: 1.3rem; cursor: pointer;">EJECUTAR</button>
+                <button type="submit" style="width: 100%; background: #E0FFFF; color: #003366; border: none; padding: 15px; font-weight: bold; cursor: pointer;">EXPLORAR</button>
             </form>
         </div>
     </body></html>
@@ -40,45 +35,40 @@ def home():
 
 @app.route('/nav')
 def proxy():
-    query = request.args.get('url')
-    if not query: return home()
+    target_url = request.args.get('url')
+    if not target_url: return home()
+    if not target_url.startswith('http'): target_url = "https://" + target_url
 
-    # Si no es URL, usamos un buscador que NO bloquea (Marginalia)
-    if not (query.startswith('http://') or query.startswith('https://')):
-        target_url = f"https://www.marginalia.nu/search?query={query}"
-    else:
-        target_url = query
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'}
 
     try:
         response = requests.get(target_url, headers=headers, timeout=15)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Limpiar elementos pesados
-        for tag in soup(["script", "style", "nav", "footer", "header", "img", "video", "iframe", "ad", "button", "input"]):
+        # YA NO BORRAMOS 'nav' ni 'aside' para mantener menús
+        for tag in soup(["script", "style", "img", "video", "iframe", "footer", "header"]):
             tag.decompose()
 
-        # Adaptar enlaces
         for a in soup.find_all('a', href=True):
             a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
-            a['style'] = "color: #00FFFF; font-weight: bold; text-decoration: underline;"
+            a['style'] = "color: #00FFFF; text-decoration: underline;"
 
-        text_data = soup.get_text(separator='\n\n')
-        text_data = re.sub(r'\n\s*\n', '\n\n', text_data)
+        # Estilizamos los paneles laterales/menús para que resalten
+        for sidebar in soup.find_all(['nav', 'aside']):
+            sidebar['style'] = "border: 1px dashed #E0FFFF; padding: 10px; margin-bottom: 20px; background: #002244; font-size: 1.1rem;"
 
         return f"""
         <html>
         <head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="{UI_STYLE}">
-            <div style="border-bottom: 2px solid #E0FFFF; margin-bottom: 20px; padding-bottom: 10px; font-size: 1rem;">
-                <a href="/" style="color: #E0FFFF; text-decoration: none;">[<< RESET_SYS]</a> | {target_url[:20]}...
+            <div style="border-bottom: 2px solid #E0FFFF; padding: 10px; position: sticky; top: 0; background: #003366; z-index: 100;">
+                <a href="/" style="color: #E0FFFF;">[<< HOME]</a> | {target_url[:20]}...
             </div>
-            <div style="white-space: pre-wrap; word-wrap: break-word;">{text_data.strip()}</div>
+            <div style="padding: 15px; white-space: pre-wrap; word-wrap: break-word;">{soup.prettify()}</div>
         </body></html>
         """
     except Exception as e:
-        return f"<body style='{UI_STYLE}'>ERROR: El sitio es inaccesible desde este servidor. <br><br> <a href='/' style='color:#00FFFF;'>REINTENTAR</a></body>"
+        return f"<body style='{UI_STYLE}'>ERROR: {str(e)} <br><a href='/'>REINTENTAR</a></body>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
