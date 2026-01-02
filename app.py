@@ -5,25 +5,46 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# CSS que fuerza el "Look Notepad Blueprint" en TODO el sitio
-BLUEPRINT_INJECTION = """
+# CSS de alta precisión para evitar solapamientos y ordenar paneles
+BLUEPRINT_FIX = """
 <style>
+    /* Forzar fondo y color en TODO */
     * { 
         background-color: #003366 !important; 
         color: #E0FFFF !important; 
         font-family: 'Courier New', Courier, monospace !important;
-        border-color: #00FFFF !important;
+        box-sizing: border-box !important;
+        max-width: 100% !important;
     }
-    a { color: #00FFFF !important; text-decoration: underline !important; }
-    input, button, select, textarea { 
-        border: 1px solid #E0FFFF !important; 
-        background: #002244 !important; 
-        padding: 5px !important;
+    
+    /* Evitar que las cosas se monten (Normalización de bloques) */
+    div, section, article, aside, nav, header { 
+        display: block !important; 
+        position: relative !important; 
+        float: none !important; 
+        width: 100% !important; 
+        margin: 10px 0 !important;
+        padding: 10px !important;
+        border: 1px solid #005588 !important;
+        top: 0 !important;
+        left: 0 !important;
     }
-    img, video { opacity: 0.3; filter: grayscale(100%) brightness(1.5) sepia(100%) hue-rotate(180deg); }
-    /* Ajuste para letra grande y responsive */
-    html { font-size: 1.4rem !important; }
-    body { padding: 15px !important; line-height: 1.4 !important; }
+
+    /* Imágenes: Mejoramos visibilidad manteniendo el tono azul */
+    img { 
+        filter: cyan(100%) contrast(150%) brightness(80%) !important;
+        opacity: 0.6 !important;
+        height: auto !important;
+    }
+
+    /* Letra grande y legible */
+    html { font-size: 1.3rem !important; }
+    
+    /* Enlaces brillantes */
+    a { color: #00FFFF !important; font-weight: bold !important; }
+
+    /* Ocultar elementos que suelen causar ruido visual */
+    iframe, script, noscript, video, canvas { display: none !important; }
 </style>
 """
 
@@ -31,14 +52,14 @@ BLUEPRINT_INJECTION = """
 def home():
     return render_template_string(f"""
     <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-    <body style="background:#003366; color:#E0FFFF; font-family:monospace; text-align:center; padding-top:100px;">
-        <div style="border:2px solid #E0FFFF; padding:30px; display:inline-block; width:90%; max-width:500px;">
-            <h1>PACIFIC-SURF v2.0</h1>
-            <p>[FULL_STRUCTURE_BLUEPRINT]</p>
+    <body style="background:#003366; color:#E0FFFF; font-family:monospace; text-align:center; padding:50px 20px;">
+        <div style="border:2px solid #E0FFFF; padding:20px; display:inline-block; width:100%; max-width:450px;">
+            <h1>PACIFIC-SURF v2.1</h1>
+            <p>[STRUCTURE_FIX_DEPLOYED]</p>
             <form action="/nav" method="get">
-                <input type="text" name="url" style="width:100%; padding:10px;" placeholder="URL (ej: bbc.com)">
+                <input type="text" name="url" style="width:100%; padding:15px; background:#001122; color:#00FFFF; border:1px solid #00FFFF;" placeholder="URL o Búsqueda...">
                 <br><br>
-                <button type="submit" style="width:100%; padding:10px; cursor:pointer;">INICIAR SISTEMA</button>
+                <button type="submit" style="width:100%; padding:15px; background:#E0FFFF; color:#003366; font-weight:bold; cursor:pointer;">EJECUTAR</button>
             </form>
         </div>
     </body></html>
@@ -50,38 +71,35 @@ def proxy():
     if not target_url: return home()
     if not target_url.startswith('http'): target_url = "https://" + target_url
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'}
 
     try:
         response = requests.get(target_url, headers=headers, timeout=15)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 1. Inyectamos nuestro ADN Blueprint en el <head>
+        # Inyectamos el CSS corrector
         if soup.head:
-            soup.head.append(BeautifulSoup(BLUEPRINT_INJECTION, 'html.parser'))
+            soup.head.append(BeautifulSoup(BLUEPRINT_FIX, 'html.parser'))
         else:
-            # Si no hay head, lo creamos
             new_head = soup.new_tag("head")
-            new_head.append(BeautifulSoup(BLUEPRINT_INJECTION, 'html.parser'))
+            new_head.append(BeautifulSoup(BLUEPRINT_FIX, 'html.parser'))
             soup.insert(0, new_head)
 
-        # 2. Reescritura de enlaces para no salir del proxy
+        # Reescritura de enlaces
         for a in soup.find_all('a', href=True):
             a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
 
-        # 3. Mantenemos Scripts y Estilos originales pero con nuestra capa encima
         return f"""
         <html>
         <head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-        <div style="background:#002244; border-bottom:1px solid #00FFFF; padding:10px; position:sticky; top:0; z-index:9999;">
-            <a href="/" style="color:#00FFFF; font-family:monospace;">[<< REBOOT]</a> | 
-            <span style="color:#E0FFFF; font-family:monospace; font-size:0.8rem;">{target_url[:30]}</span>
+        <div style="background:#001122; border-bottom:2px solid #00FFFF; padding:10px; position:sticky; top:0; z-index:10000; font-family:monospace;">
+            <a href="/" style="color:#00FFFF;">[<< RESET]</a> | <span style="font-size:0.7rem;">{target_url[:25]}</span>
         </div>
-        {soup.prettify()}
+        {soup.body.prettify() if soup.body else soup.prettify()}
         </html>
         """
     except Exception as e:
-        return f"<html><body style='background:#003366; color:white;'>ERROR: {str(e)}</body></html>"
+        return f"<html><body style='background:#003366; color:white;'>ERROR_RESOURCES: {str(e)}</body></html>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
