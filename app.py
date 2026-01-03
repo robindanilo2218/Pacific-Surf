@@ -35,18 +35,22 @@ def proxy():
     url = request.args.get('url')
     if not url: return home()
 
-    # --- PARCHE DE REDIRECCIÓN (FIX DUCKDUCKGO) ---
+    # --- PARCHE DE REDIRECCIÓN (FIX google) ---
     if 'uddg=' in url: url = up.unquote(url.split('uddg=')[1].split('&')[0])
     elif 'url?q=' in url: url = up.unquote(url.split('url?q=')[1].split('&')[0])
     
-    t_url = url if url.startswith('http') else f"https://html.duckduckgo.com/html/?q={url}"
+    t_url = url if url.startswith('http') else f"https;//www.google.com/search?q={url}"
 
     try:
         r = requests.get(t_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         s = BeautifulSoup(r.text, 'html.parser')
-        for tag in s(["script", "style", "img", "video", "iframe"]): tag.decompose()
-        for a in s.find_all('a', href=True):
-            a['href'] = f"/nav?{urlencode({'url': urljoin(t_url, a['href'])})}"
+        # ELIMINACIÓN AGRESIVA DE MENÚS Y BASURA
+        # Eliminamos nav, footer, header y aside para que solo quede el contenido
+        for tag in s(["script", "style", "img", "video", "iframe", "nav", "footer", "header", "aside", "form"]): 
+            tag.decompose()
+        
+        # Intentar capturar solo el contenido principal si el sitio es moderno
+        main_content = s.find('main') or s.find('article') or s.body
 
         ctrl = f'<div id="gear" onclick="togM()">⚙️</div><div id="menu"><button onclick="togE()">MODO BORRAR</button><input type="range" min="1" max="3" step="0.1" oninput="setS(this.value)"><a href="/" style="color:#0ff">NUEVA BUSQUEDA</a></div>'
         return f"<html><head>{UI_BASE}</head><body class='blue-mode'>{ctrl}{s.body.prettify() if s.body else s.prettify()}</body></html>"
