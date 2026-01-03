@@ -6,68 +6,31 @@ from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# ESTILO BLUEPRINT V4.0 ORIGINAL
-HTML_TEMPLATE = """
+# ESTILO BLUEPRINT V4.0 ORIGINAL PARA LA PÁGINA DE INICIO
+INICIO_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PACIFIC SURF v5.0</title>
+    <title>PACIFIC SURF v4.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {
-            background-color: #001220; /* Azul Marino Oscuro */
-            color: #00FBFF; /* Cian Neón */
-            font-family: 'Courier New', monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-        }
-        .container {
-            border: 2px solid #00FBFF;
-            padding: 40px;
-            text-align: center;
-            width: 80%;
-            max-width: 400px;
-            box-shadow: 0 0 20px rgba(0, 251, 255, 0.3);
-        }
-        h1 { font-size: 2.5rem; letter-spacing: 8px; margin: 0; }
-        h2 { font-size: 1.5rem; letter-spacing: 5px; margin: 20px 0; }
-        .version { font-size: 2rem; margin-bottom: 30px; }
-        .tagline { font-size: 0.9rem; margin-bottom: 20px; text-transform: uppercase; }
-        input[type="text"] {
-            width: 100%;
-            background: #000;
-            border: 1px solid #00FBFF;
-            color: #00FBFF;
-            padding: 10px;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-            outline: none;
-        }
-        button {
-            width: 100%;
-            background: #00FBFF;
-            color: #001220;
-            border: none;
-            padding: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
-        button:hover { background: #fff; }
+        body { background-color: #001220; color: #00FBFF; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { border: 2px solid #00FBFF; padding: 40px; text-align: center; width: 300px; box-shadow: 0 0 20px rgba(0, 251, 255, 0.3); }
+        h1 { font-size: 2rem; letter-spacing: 5px; margin: 0; }
+        .v { font-size: 1.8rem; margin: 20px 0; }
+        .tag { font-size: 0.8rem; margin-bottom: 30px; }
+        input { width: 100%; background: #000; border: 1px solid #00FBFF; color: #00FBFF; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        button { width: 100%; background: #00FBFF; color: #001220; border: none; padding: 12px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="box">
         <h1>PACIFIC</h1>
-        <h2>SURF</h2>
-        <div class="version">v5.0</div>
-        <div class="tagline">[ MODO LYNX + BLUEPRINT ]</div>
+        <h1>SURF</h1>
+        <div class="v">v4.0</div>
+        <div class="tag">[ MODO LYNX + BLUEPRINT ]</div>
         <form action="/nav">
-            <input type="text" name="url" placeholder="Wikipedia, Google o URL..." autofocus>
+            <input type="text" name="url" placeholder="Wikipedia o URL..." autofocus>
             <button type="submit">EJECUTAR</button>
         </form>
     </div>
@@ -77,41 +40,50 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(INICIO_HTML)
 
 @app.route('/nav')
 def nav():
     url = request.args.get('url')
     if not url: return home()
 
-    # CAMBIO A BUSCADOR GOOGLE
-    if not url.startswith('http'):
-        target_url = f"https://www.google.com/search?q={url}"
-    else:
-        target_url = url
+    # CAMBIO ESTRATÉGICO: Usamos DuckDuckGo para evitar el bloqueo de "Robot" de Google
+    target_url = url if url.startswith('http') else f"https://html.duckduckgo.com/html/?q={url}"
 
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        # User-Agent para parecer un navegador real
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         r = requests.get(target_url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
 
-        # FILTRADO QUIRÚRGICO (MODO LECTURA)
-        # Eliminamos menús (nav), cabeceras (header) y pies de página (footer)
-        for tag in soup(["script", "style", "img", "video", "nav", "header", "footer", "aside"]):
+        # LIMPIEZA TOTAL DE MENÚS (MODO LYNX)
+        for tag in soup(["script", "style", "img", "video", "nav", "header", "footer", "aside", "form", "iframe"]):
             tag.decompose()
 
-        # Re-escribir enlaces para que sigan pasando por nuestro proxy
+        # RE-ESCRITURA DE LINKS PARA MANTENERSE EN EL PROXY
         for a in soup.find_all('a', href=True):
-            absolute_url = urljoin(target_url, a['href'])
-            a['href'] = f"/nav?{urlencode({'url': absolute_url})}"
+            a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
 
-        # Estética para el contenido de lectura
-        content_style = "<style>body{background:#001220;color:#00FBFF;font-family:monospace;padding:20px;} a{color:#fff;}</style>"
-        return content_style + soup.prettify()
-
+        # INYECCIÓN DEL BLUEPRINT EN LOS RESULTADOS (FONDO AZUL)
+        resultado_estilo = f"""
+        <html>
+        <head>
+            <style>
+                body {{ background-color: #001220 !important; color: #00FBFF !important; font-family: monospace; padding: 20px; line-height: 1.5; }}
+                a {{ color: #FFFFFF !important; }}
+                h1, h2, h3 {{ border-bottom: 1px solid #00FBFF; }}
+                .back {{ border: 1px solid #00FBFF; padding: 5px; text-decoration: none; display: inline-block; margin-bottom: 20px; color: #00FBFF !important; }}
+            </style>
+        </head>
+        <body>
+            <a href="/" class="back">[ VOLVER ]</a>
+            <div>{soup.prettify()}</div>
+        </body>
+        </html>
+        """
+        return render_template_string(resultado_estilo)
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"<body style='background:#001220;color:red'>Error: {str(e)}</body>"
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
