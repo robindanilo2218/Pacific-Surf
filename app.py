@@ -1,12 +1,19 @@
 import os
 import requests
+import random
 from flask import Flask, request, render_template_string
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# ESTILO BLUEPRINT V4.0 - PÁGINA DE INICIO
+# LISTA DE DISFRACES (USER-AGENTS) PARA NO PARECER UN BOT
+AGENTES = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+]
+
 INICIO_HTML = """
 <!DOCTYPE html>
 <html>
@@ -18,7 +25,7 @@ INICIO_HTML = """
         .box { border: 2px solid #00FBFF; padding: 40px; text-align: center; width: 300px; box-shadow: 0 0 20px rgba(0, 251, 255, 0.3); }
         h1 { font-size: 2rem; letter-spacing: 5px; margin: 0; }
         .v { font-size: 1.8rem; margin: 20px 0; }
-        input { width: 100%; background: #000; border: 1px solid #00FBFF; color: #00FBFF; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        input { width: 100%; background: #000; border: 1px solid #00FBFF; color: #00FBFF; padding: 10px; margin-bottom: 10px; box-sizing: border-box; outline: none; }
         button { width: 100%; background: #00FBFF; color: #001220; border: none; padding: 12px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -28,7 +35,7 @@ INICIO_HTML = """
         <h1>SURF</h1>
         <div class="v">v4.0</div>
         <form action="/nav">
-            <input type="text" name="url" placeholder="Buscar..." autofocus>
+            <input type="text" name="url" placeholder="Buscar en Wikipedia..." autofocus>
             <button type="submit">EJECUTAR</button>
         </form>
     </div>
@@ -45,50 +52,48 @@ def nav():
     url = request.args.get('url')
     if not url: return home()
 
-    # Usamos DuckDuckGo para evitar bloqueos, pero forzamos NUESTROS colores
+    # Si no es URL, usamos DuckDuckGo (más amigable que Google para evitar bloqueos)
     target_url = url if url.startswith('http') else f"https://html.duckduckgo.com/html/?q={url}"
 
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(target_url, headers=headers, timeout=10)
+        # CAPA DE INVISIBILIDAD: Elegimos un disfraz aleatorio
+        headers = {
+            'User-Agent': random.choice(AGENTES),
+            'Accept-Language': 'es-ES,es;q=0.9',
+            'Referer': 'https://www.google.com/'
+        }
+        
+        r = requests.get(target_url, headers=headers, timeout=15)
         soup = BeautifulSoup(r.text, 'html.parser')
 
-        # Limpieza de basura
-        for tag in soup(["script", "style", "img", "nav", "header", "footer", "form"]):
+        # LIMPIEZA MODO LYNX
+        for tag in soup(["script", "style", "img", "nav", "header", "footer", "form", "iframe"]):
             tag.decompose()
 
-        # Re-escritura de links
         for a in soup.find_all('a', href=True):
             a['href'] = f"/nav?{urlencode({'url': urljoin(target_url, a['href'])})}"
 
-        # INYECCIÓN AGRESIVA DE COLORES HERMOSOS
-        blueprint_results = f"""
+        # BLINDAJE DE COLORES HERMOSOS (AZUL Y CIAN)
+        resultado_estilo = f"""
         <html>
         <head>
             <style>
-                body {{ 
-                    background-color: #001220 !important; 
-                    color: #00FBFF !important; 
-                    font-family: 'Courier New', monospace !important; 
-                    padding: 20px; 
-                }}
-                /* Forzamos que todos los textos sean Cian */
+                body {{ background-color: #001220 !important; color: #00FBFF !important; font-family: 'Courier New', monospace !important; padding: 25px; line-height: 1.6; }}
                 * {{ color: #00FBFF !important; }}
-                /* Los links en Blanco para que resalten */
                 a {{ color: #FFFFFF !important; text-decoration: underline !important; }}
-                h1, h2, h3 {{ border-bottom: 1px solid #00FBFF; }}
-                .home-btn {{ border: 1px solid #00FBFF; padding: 5px; text-decoration: none; display: inline-block; margin-bottom: 20px; }}
+                h1, h2, h3 {{ border-bottom: 1px solid #00FBFF; padding-bottom: 10px; }}
+                .btn {{ border: 1px solid #00FBFF; padding: 5px; text-decoration: none; display: inline-block; margin-bottom: 20px; }}
             </style>
         </head>
         <body>
-            <a href="/" class="home-btn">[ VOLVER AL INICIO ]</a>
+            <a href="/" class="btn">[ VOLVER AL INICIO ]</a>
             <div>{soup.prettify()}</div>
         </body>
         </html>
         """
-        return render_template_string(blueprint_results)
+        return render_template_string(resultado_estilo)
     except Exception as e:
-        return f"<body style='background:#001220;color:red'>Error: {str(e)}</body>"
+        return f"<body style='background:#001220;color:red;font-family:monospace;'>[ SISTEMA ] Error de conexión: {str(e)}<br><a href='/' style='color:white;'>Reintentar</a></body>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
