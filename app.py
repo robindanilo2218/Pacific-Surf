@@ -8,11 +8,14 @@ app = Flask(__name__)
 # UI Maestra: Blueprint + Controles
 UI_BASE = """
 <style>
-    :root { --fsize: 1.3rem; }
-    body.blue-mode, body.blue-mode * { background:#001a33 !important; color:#00ffff !important; font-family:monospace !important; font-size: var(--fsize) !important; }
-    .edit-active *:hover { outline: 2px solid red !important; cursor: crosshair !important; }
-    #gear { position:fixed; bottom:20px; right:20px; z-index:99; background:#0ff; border-radius:50%; width:45px; height:45px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-    #menu { position:fixed; bottom:70px; right:20px; z-index:99; background:#000; border:1px solid #0ff; padding:15px; display:none; flex-direction:column; gap:10px; }
+    /* El cuadro centralizado */
+    .main-frame {
+        border: 3px double #00FBFF; /* Doble línea cian */
+        padding: 50px;
+        background: rgba(0, 18, 32, 0.9);
+        box-shadow: 0 0 30px #00FBFF;
+        border-radius: 15px; /* Bordes redondeados para elegancia */
+    }
 </style>
 <script>
     function togM() { const m=document.getElementById('menu'); m.style.display=m.style.display==='flex'?'none':'flex'; }
