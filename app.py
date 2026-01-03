@@ -1,64 +1,117 @@
+import os
+import requests
 from flask import Flask, request, render_template_string
-import requests, re, urllib.parse as up
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# UI Maestra: Blueprint + Controles
-UI_BASE = """
-<style>
-    /* El cuadro centralizado */
-    .main-frame {
-        border: 3px double #00FBFF; /* Doble línea cian */
-        padding: 50px;
-        background: rgba(0, 18, 32, 0.9);
-        box-shadow: 0 0 30px #00FBFF;
-        border-radius: 15px; /* Bordes redondeados para elegancia */
-    }
-</style>
-<script>
-    function togM() { const m=document.getElementById('menu'); m.style.display=m.style.display==='flex'?'none':'flex'; }
-    function setS(v) { document.documentElement.style.setProperty('--fsize', v+'rem'); }
-    function togE() { 
-        document.body.classList.toggle('edit-active');
-        if(document.body.classList.contains('edit-active')) {
-            document.onclick = (e) => { if(document.body.classList.contains('edit-active')){ e.preventDefault(); e.target.remove(); } };
+# ESTILO BLUEPRINT V4.0 ORIGINAL
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PACIFIC SURF v5.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background-color: #001220; /* Azul Marino Oscuro */
+            color: #00FBFF; /* Cian Neón */
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
         }
-    }
-</script>
+        .container {
+            border: 2px solid #00FBFF;
+            padding: 40px;
+            text-align: center;
+            width: 80%;
+            max-width: 400px;
+            box-shadow: 0 0 20px rgba(0, 251, 255, 0.3);
+        }
+        h1 { font-size: 2.5rem; letter-spacing: 8px; margin: 0; }
+        h2 { font-size: 1.5rem; letter-spacing: 5px; margin: 20px 0; }
+        .version { font-size: 2rem; margin-bottom: 30px; }
+        .tagline { font-size: 0.9rem; margin-bottom: 20px; text-transform: uppercase; }
+        input[type="text"] {
+            width: 100%;
+            background: #000;
+            border: 1px solid #00FBFF;
+            color: #00FBFF;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            background: #00FBFF;
+            color: #001220;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        button:hover { background: #fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PACIFIC</h1>
+        <h2>SURF</h2>
+        <div class="version">v5.0</div>
+        <div class="tagline">[ MODO LYNX + BLUEPRINT ]</div>
+        <form action="/nav">
+            <input type="text" name="url" placeholder="Wikipedia, Google o URL..." autofocus>
+            <button type="submit">EJECUTAR</button>
+        </form>
+    </div>
+</body>
+</html>
 """
 
 @app.route('/')
 def home():
-    return render_template_string(f"<html><head>{UI_BASE}</head><body class='blue-mode'><h1>PACIFIC SURF v4.7</h1><form action='/nav'><input name='url' placeholder='Buscar o URL...' style='width:80%;padding:10px;'><button>GO</button></form></body></html>")
+    return render_template_string(HTML_TEMPLATE)
 
 @app.route('/nav')
-def proxy():
+def nav():
     url = request.args.get('url')
     if not url: return home()
 
-    # --- PARCHE DE REDIRECCIÓN (FIX google) ---
-    if 'uddg=' in url: url = up.unquote(url.split('uddg=')[1].split('&')[0])
-    elif 'url?q=' in url: url = up.unquote(url.split('url?q=')[1].split('&')[0])
-    
-    t_url = url if url.startswith('http') else f"https;//www.google.com/search?q={url}"
+    # CAMBIO A BUSCADOR GOOGLE
+    if not url.startswith('http'):
+        target_url = f"https://www.google.com/search?q={url}"
+    else:
+        target_url = url
 
     try:
-        r = requests.get(t_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-        s = BeautifulSoup(r.text, 'html.parser')
-        # ELIMINACIÓN AGRESIVA DE MENÚS Y BASURA
-        # Eliminamos nav, footer, header y aside para que solo quede el contenido
-        for tag in s(["script", "style", "img", "video", "iframe", "nav", "footer", "header", "aside", "form"]): 
-            tag.decompose()
-        
-        # Intentar capturar solo el contenido principal si el sitio es moderno
-        main_content = s.find('main') or s.find('article') or s.body
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(target_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, 'html.parser')
 
-        ctrl = f'<div id="gear" onclick="togM()">⚙️</div><div id="menu"><button onclick="togE()">MODO BORRAR</button><input type="range" min="1" max="3" step="0.1" oninput="setS(this.value)"><a href="/" style="color:#0ff">NUEVA BUSQUEDA</a></div>'
-        return f"<html><head>{UI_BASE}</head><body class='blue-mode'>{ctrl}{s.body.prettify() if s.body else s.prettify()}</body></html>"
+        # FILTRADO QUIRÚRGICO (MODO LECTURA)
+        # Eliminamos menús (nav), cabeceras (header) y pies de página (footer)
+        for tag in soup(["script", "style", "img", "video", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+
+        # Re-escribir enlaces para que sigan pasando por nuestro proxy
+        for a in soup.find_all('a', href=True):
+            absolute_url = urljoin(target_url, a['href'])
+            a['href'] = f"/nav?{urlencode({'url': absolute_url})}"
+
+        # Estética para el contenido de lectura
+        content_style = "<style>body{background:#001220;color:#00FBFF;font-family:monospace;padding:20px;} a{color:#fff;}</style>"
+        return content_style + soup.prettify()
+
     except Exception as e:
-        return f"Error: {str(e)} <br> <a href='/'>Volver</a>"
+        return f"Error: {str(e)}"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
