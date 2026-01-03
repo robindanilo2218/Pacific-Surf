@@ -1,111 +1,57 @@
 from flask import Flask, request, render_template_string
-import requests, re
+import requests, re, urllib.parse as up
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlencode
 
 app = Flask(__name__)
 
-# CSS Blueprint persistente (Ahora es el ÚNICO estilo que cargará el navegador)
-CORE_ASSETS = """
+# UI Maestra: Blueprint + Controles
+UI_BASE = """
 <style>
-    :root { --font-size: 1.3rem; }
-    body { 
-        background-color: #001a33 !important; 
-        color: #00ffff !important; 
-        font-family: 'Courier New', monospace !important;
-        font-size: var(--font-size) !important;
-        line-height: 1.6;
-        padding: 20px;
-        margin: 0;
-    }
-    a { color: #e0ffff !important; text-decoration: underline !important; font-weight: bold; }
-    
-    /* Panel de Ajustes y Engranaje */
-    #gear-btn { 
-        position: fixed; bottom: 20px; right: 20px; z-index: 100000;
-        background: #00ffff; border-radius: 50%; width: 50px; height: 50px;
-        display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 24px;
-    }
-    #settings-panel {
-        position: fixed; bottom: 80px; right: 20px; z-index: 100000;
-        background: #000; border: 2px solid #00ffff; padding: 20px;
-        display: none; flex-direction: column; gap: 15px; color: #00ffff;
-    }
-    input[type=range] { width: 100%; cursor: pointer; }
+    :root { --fsize: 1.3rem; }
+    body.blue-mode, body.blue-mode * { background:#001a33 !important; color:#00ffff !important; font-family:monospace !important; font-size: var(--fsize) !important; }
+    .edit-active *:hover { outline: 2px solid red !important; cursor: crosshair !important; }
+    #gear { position:fixed; bottom:20px; right:20px; z-index:99; background:#0ff; border-radius:50%; width:45px; height:45px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    #menu { position:fixed; bottom:70px; right:20px; z-index:99; background:#000; border:1px solid #0ff; padding:15px; display:none; flex-direction:column; gap:10px; }
 </style>
 <script>
-    function togglePanel() {
-        const p = document.getElementById('settings-panel');
-        p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+    function togM() { const m=document.getElementById('menu'); m.style.display=m.style.display==='flex'?'none':'flex'; }
+    function setS(v) { document.documentElement.style.setProperty('--fsize', v+'rem'); }
+    function togE() { 
+        document.body.classList.toggle('edit-active');
+        if(document.body.classList.contains('edit-active')) {
+            document.onclick = (e) => { if(document.body.classList.contains('edit-active')){ e.preventDefault(); e.target.remove(); } };
+        }
     }
-    function updateSize(val) {
-        document.documentElement.style.setProperty('--font-size', val + 'rem');
-        localStorage.setItem('p-size', val);
-    }
-    window.addEventListener('DOMContentLoaded', () => {
-        const savedSize = localStorage.getItem('p-size') || '1.3';
-        updateSize(savedSize);
-        document.getElementById('size-slider').value = savedSize;
-    });
 </script>
 """
 
 @app.route('/')
 def home():
-    return render_template_string(f"""
-    <html><head>{CORE_ASSETS}</head>
-    <body style="text-align:center; display:flex; align-items:center; justify-content:center; height:100vh;">
-        <div style="border:2px solid #00ffff; padding:30px; width:90%; max-width:500px;">
-            <h1>PACIFIC SURF v4.0</h1>
-            <p>[ MODO LYNX + BLUEPRINT ]</p>
-            <form action="/nav" method="get">
-                <input type="text" name="url" style="width:100%; background:#000; color:#0ff; border:1px solid #0ff; padding:15px; margin-bottom:15px;" placeholder="URL o Búsqueda..." required>
-                <button type="submit" style="width:100%; background:#0ff; color:#001a33; border:none; padding:15px; font-weight:bold; cursor:pointer;">EJECUTAR</button>
-            </form>
-        </div>
-    </body></html>
-    """)
+    return render_template_string(f"<html><head>{UI_BASE}</head><body class='blue-mode'><h1>PACIFIC SURF v4.7</h1><form action='/nav'><input name='url' placeholder='Buscar o URL...' style='width:80%;padding:10px;'><button>GO</button></form></body></html>")
 
 @app.route('/nav')
 def proxy():
-    query = request.args.get('url')
-    if not query: return home()
+    url = request.args.get('url')
+    if not url: return home()
 
-    # MOTOR DE BÚSQUEDA: Usamos DuckDuckGo Lite (HTML puro, sin JS, sin bloqueos)
-    if not (query.startswith('http://') or query.startswith('https://')):
-        target_url = f"https://html.duckduckgo.com/html/?q={query}"
-    else:
-        target_url = query
-
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
+    # --- PARCHE DE REDIRECCIÓN (FIX DUCKDUCKGO) ---
+    if 'uddg=' in url: url = up.unquote(url.split('uddg=')[1].split('&')[0])
+    elif 'url?q=' in url: url = up.unquote(url.split('url?q=')[1].split('&')[0])
+    
+    t_url = url if url.startswith('http') else f"https://html.duckduckgo.com/html/?q={url}"
 
     try:
-        response = requests.get(target_url, headers=headers, timeout=15)
-        response.encoding = 'utf-8'
-        soup = BeautifulSoup(response.text, 'html.parser')
+        r = requests.get(t_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        s = BeautifulSoup(r.text, 'html.parser')
+        for tag in s(["script", "style", "img", "video", "iframe"]): tag.decompose()
+        for a in s.find_all('a', href=True):
+            a['href'] = f"/nav?{urlencode({'url': urljoin(t_url, a['href'])})}"
 
-        # --- EL "EFECTO LYNX": Eliminación masiva de activos pesados ---
-        for tag in soup(["script", "style", "link", "img", "video", "iframe", "svg", "noscript"]):
-            tag.decompose()
-
-        # Reescritura de enlaces para navegación persistente
-        for a in soup.find_all('a', href=True):
-            full_url = urljoin(target_url, a['href'])
-            a['href'] = f"/nav?{urlencode({'url': full_url})}"
-
-        # Interfaz de Control
-        ui_controls = f"""
-        <div id="gear-btn" onclick="togglePanel()">⚙️</div>
-        <div id="settings-panel">
-            <strong>AJUSTES DE LECTURA</strong>
-            <label>Tamaño Letra: <input type="range" id="size-slider" min="0.8" max="3.0" step="0.1" oninput="updateSize(this.value)"></label>
-            <button onclick="location.href='/'" style="background:#0ff; border:none; padding:10px; cursor:pointer;">NUEVA BÚSQUEDA</button>
-        </div>
-        """
-
-        return f"<html><head>{CORE_ASSETS}</head><body>{ui_controls}{soup.prettify()}</body></html>"
+        ctrl = f'<div id="gear" onclick="togM()">⚙️</div><div id="menu"><button onclick="togE()">MODO BORRAR</button><input type="range" min="1" max="3" step="0.1" oninput="setS(this.value)"><a href="/" style="color:#0ff">NUEVA BUSQUEDA</a></div>'
+        return f"<html><head>{UI_BASE}</head><body class='blue-mode'>{ctrl}{s.body.prettify() if s.body else s.prettify()}</body></html>"
     except Exception as e:
-        return f"<html><head>{CORE_ASSETS}</head><body>ERROR: {str(e)}<br><a href='/'>VOLVER</a></body></html>"
+        return f"Error: {str(e)} <br> <a href='/'>Volver</a>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
