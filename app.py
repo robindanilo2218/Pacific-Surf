@@ -68,7 +68,13 @@ def nav():
             'Referer': 'https://www.google.com/'
         }
         
-        r = requests.get(target_url, headers=headers, timeout=15)
+                # Usamos una sesión para mantener cookies básicas (parece más humano)
+        with requests.Session() as session:
+            r = session.get(target_url, headers=headers, timeout=15)
+            
+        if r.status_code != 200:
+            return f"<body style='background:#001220;color:red;font-family:monospace;'>[ SISTEMA ] El buscador nos ha pausado temporalmente. Reintenta en 10 segundos.</body>"
+
         soup = BeautifulSoup(r.text, 'html.parser')
 
         # LIMPIEZA QUIRÚRGICA: Solo texto, nada de basura
